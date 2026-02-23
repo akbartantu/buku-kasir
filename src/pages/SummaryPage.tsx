@@ -1,0 +1,317 @@
+import { useState, useRef } from "react";
+import { useNavigate } from "react-router-dom";
+import { ArrowLeft, BarChart3, Calendar, ChevronLeft, ChevronRight, DollarSign, Leaf, Trophy } from "lucide-react";
+import { useProducts, useTransactions } from "@/hooks/useStore";
+import { formatCurrency } from "@/lib/utils";
+
+const today = () => new Date().toISOString().split("T")[0];
+
+function dateOffset(d: string, offset: number): string {
+  const t = new Date(d + "T12:00:00");
+  t.setDate(t.getDate() + offset);
+  return t.toISOString().split("T")[0];
+}
+
+function getMonday(d: string): string {
+  const t = new Date(d + "T12:00:00");
+  const day = t.getDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  t.setDate(t.getDate() + diff);
+  return t.toISOString().split("T")[0];
+}
+
+function weekEnd(weekStart: string): string {
+  return dateOffset(weekStart, 6);
+}
+
+function monthOffset(ym: string, offset: number): string {
+  const [y, m] = ym.split("-").map(Number);
+  const t = new Date(y, m - 1 + offset, 1);
+  return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function inRange(date: string, start: string, end: string): boolean {
+  return date >= start && date <= end;
+}
+
+type FilterMode = "day" | "week" | "month" | "year";
+
+export default function SummaryPage() {
+  const navigate = useNavigate();
+  const { products } = useProducts();
+  const { transactions } = useTransactions();
+  const [mode, setMode] = useState<FilterMode>("day");
+  const [selectedDate, setSelectedDate] = useState(today());
+  const [selectedWeekStart, setSelectedWeekStart] = useState(() => getMonday(today()));
+  const [selectedMonth, setSelectedMonth] = useState(() => today().slice(0, 7));
+  const [selectedYear, setSelectedYear] = useState(() => today().slice(0, 4));
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const dateInputRef = useRef<HTMLInputElement>(null);
+
+  const filteredTransactions = (() => {
+    if (mode === "day") return transactions.filter((t) => t.date === selectedDate);
+    if (mode === "week") {
+      const end = weekEnd(selectedWeekStart);
+      return transactions.filter((t) => inRange(t.date, selectedWeekStart, end));
+    }
+    if (mode === "month") {
+      return transactions.filter((t) => t.date.startsWith(selectedMonth));
+    }
+    return transactions.filter((t) => t.date.startsWith(selectedYear));
+  })();
+
+  const totalSales = filteredTransactions.filter((t) => t.type === "sale").reduce((sum, t) => sum + t.amount, 0);
+  const totalExpenses = filteredTransactions.filter((t) => t.type === "expense").reduce((sum, t) => sum + t.amount, 0);
+  const profit = totalSales - totalExpenses;
+  const sales = filteredTransactions.filter((t) => t.type === "sale");
+  const expenses = filteredTransactions.filter((t) => t.type === "expense");
+
+  const periodLabel = (() => {
+    if (mode === "day") {
+      return selectedDate === today()
+        ? "Hari Ini"
+        : new Date(selectedDate + "T12:00:00").toLocaleDateString("id-ID", {
+            day: "numeric",
+            month: "short",
+            year: "numeric",
+          });
+    }
+    if (mode === "week") {
+      const end = weekEnd(selectedWeekStart);
+      const a = new Date(selectedWeekStart + "T12:00:00").toLocaleDateString("id-ID", { day: "numeric", month: "short" });
+      const b = new Date(end + "T12:00:00").toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" });
+      return `${a} – ${b}`;
+    }
+    if (mode === "month") {
+      return new Date(selectedMonth + "-01T12:00:00").toLocaleDateString("id-ID", { month: "long", year: "numeric" });
+    }
+    return selectedYear;
+  })();
+
+  const getProductName = (tx: { productId?: string; productName?: string }) =>
+    (tx.productId && products.find((p) => p.id === tx.productId)?.name) ?? tx.productName ?? "—";
+
+  /** For expense cards: show only the description part (after last " — ") to keep the card short. */
+  const getExpenseLabel = (description: string | undefined): string => {
+    if (!description || !description.trim()) return "—";
+    const idx = description.lastIndexOf(" — ");
+    return idx >= 0 ? description.slice(idx + 3).trim() : description.trim();
+  };
+
+  const isToday = selectedDate === today();
+
+  const canGoNext = () => {
+    if (mode === "day") return !isToday;
+    if (mode === "week") return dateOffset(selectedWeekStart, 7) <= getMonday(today());
+    if (mode === "month") return monthOffset(selectedMonth, 1) <= today().slice(0, 7);
+    return Number(selectedYear) + 1 <= Number(today().slice(0, 4));
+  };
+
+  const handlePrev = () => {
+    if (mode === "day") setSelectedDate((d) => dateOffset(d, -1));
+    else if (mode === "week") setSelectedWeekStart((w) => dateOffset(w, -7));
+    else if (mode === "month") setSelectedMonth((m) => monthOffset(m, -1));
+    else setSelectedYear((y) => String(Number(y) - 1));
+  };
+
+  const handleNext = () => {
+    if (mode === "day") setSelectedDate((d) => dateOffset(d, 1));
+    else if (mode === "week") setSelectedWeekStart((w) => dateOffset(w, 7));
+    else if (mode === "month") setSelectedMonth((m) => monthOffset(m, 1));
+    else setSelectedYear((y) => String(Number(y) + 1));
+  };
+
+  const modes: { id: FilterMode; label: string }[] = [
+    { id: "day", label: "Hari" },
+    { id: "week", label: "Minggu" },
+    { id: "month", label: "Bulan" },
+    { id: "year", label: "Tahun" },
+  ];
+
+  return (
+    <div className="min-h-screen bg-background pb-28 px-4 pt-4">
+      <div className="mx-auto max-w-md">
+        {/* Header */}
+        <div className="flex items-center gap-3 mb-6">
+          <button
+            onClick={() => navigate("/")}
+            className="touch-target rounded-xl bg-secondary flex items-center justify-center p-3 active:scale-95 transition-transform"
+          >
+            <ArrowLeft className="w-7 h-7" />
+          </button>
+          <h1 className="text-elder-xl font-black flex items-center gap-2">
+            <BarChart3 className="w-7 h-7" /> Ringkasan
+          </h1>
+        </div>
+
+        {/* Mode tabs */}
+        <div className="flex gap-2 mb-4 p-1 rounded-xl bg-muted/60">
+          {modes.map((m) => (
+            <button
+              key={m.id}
+              type="button"
+              onClick={() => setMode(m.id)}
+              className={`flex-1 py-2.5 rounded-lg text-elder-sm font-bold transition-colors ${
+                mode === m.id ? "bg-primary text-primary-foreground" : "text-muted-foreground"
+              }`}
+            >
+              {m.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Date/period bar */}
+        <div className="flex items-center justify-center gap-2 mb-6 py-3 px-4 rounded-2xl bg-secondary/80">
+          <button
+            type="button"
+            onClick={handlePrev}
+            className="touch-target w-10 h-10 rounded-xl bg-muted flex items-center justify-center text-muted-foreground active:scale-95"
+          >
+            <ChevronLeft className="w-6 h-6" />
+          </button>
+          {mode === "day" && (
+            <label
+              className="flex-1 flex items-center justify-center gap-2 font-bold text-elder-base cursor-pointer"
+              onClick={() => dateInputRef.current?.showPicker?.()}
+            >
+              {periodLabel}
+              <Calendar className="w-4 h-4 text-muted-foreground" />
+              <input
+                ref={dateInputRef}
+                type="date"
+                value={selectedDate}
+                onChange={(e) => setSelectedDate(e.target.value)}
+                max={today()}
+                className="absolute w-0 h-0 opacity-0 pointer-events-none"
+                tabIndex={-1}
+                aria-label="Pilih tanggal"
+              />
+            </label>
+          )}
+          {mode !== "day" && <span className="flex-1 text-center font-bold text-elder-base">{periodLabel}</span>}
+          <button
+            type="button"
+            onClick={handleNext}
+            disabled={!canGoNext()}
+            className="touch-target w-10 h-10 rounded-xl bg-muted flex items-center justify-center text-muted-foreground active:scale-95 disabled:opacity-40 disabled:pointer-events-none"
+          >
+            <ChevronRight className="w-6 h-6" />
+          </button>
+        </div>
+
+        {/* Summary Card */}
+        <div className="rounded-2xl bg-card border-2 border-border p-5 mb-6 shadow-sm">
+          <div className="space-y-4">
+            <div className="flex justify-between items-center">
+              <span className="text-elder-base font-bold text-muted-foreground flex items-center gap-2">
+                <DollarSign className="w-5 h-5 text-success" /> Total Penjualan
+              </span>
+              <span className="text-elder-lg font-black text-success">
+                {formatCurrency(totalSales)}
+              </span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-elder-base font-bold text-muted-foreground flex items-center gap-2">
+                <Leaf className="w-5 h-5 text-danger" /> Total Pengeluaran
+              </span>
+              <span className="text-elder-lg font-black text-danger">
+                {formatCurrency(totalExpenses)}
+              </span>
+            </div>
+            <div className="border-t-2 border-border pt-4 flex justify-between items-center">
+              <span className="text-elder-lg font-black flex items-center gap-2">
+                <Trophy className="w-6 h-6 text-primary" /> Keuntungan
+              </span>
+              <span className={`text-elder-2xl font-black ${profit >= 0 ? "text-primary" : "text-destructive"}`}>
+                {profit >= 0 ? "" : "-"}
+                {formatCurrency(Math.abs(profit))}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* Biaya operasional hint */}
+        <p className="text-xs text-muted-foreground mb-4">
+          Biaya operasional bulanan (sewa, listrik, dll.): tab <strong>Toko</strong> → Biaya operasional.
+        </p>
+
+        {/* Transaction List (day mode) or empty state */}
+        {filteredTransactions.length === 0 ? (
+          <div className="text-center py-12">
+            <span className="text-[4rem] block mb-4">📭</span>
+            <p className="text-elder-lg font-bold text-muted-foreground">
+              {mode === "day" ? "Belum ada catatan untuk tanggal ini" : "Belum ada catatan untuk periode ini"}
+            </p>
+            <p className="text-elder-sm text-muted-foreground mt-1">
+              {mode === "day" ? "Mulai catat penjualan pertama!" : "Total di atas adalah ringkasan periode yang dipilih."}
+            </p>
+          </div>
+        ) : mode === "day" ? (
+          <>
+            {sales.length > 0 && (
+              <div className="mb-4">
+                <p className="text-elder-base font-black mb-2 flex items-center gap-2">
+                  <DollarSign className="w-4 h-4 text-success" /> Penjualan ({sales.length})
+                </p>
+                <div className="space-y-2">
+                  {sales.map((tx) => (
+                    <div
+                      key={tx.id}
+                      className="rounded-xl bg-card border border-border p-4 flex justify-between items-center"
+                    >
+                      <div>
+                        <p className="text-elder-base font-bold">{getProductName(tx)}</p>
+                        <p className="text-elder-sm text-muted-foreground">
+                          {new Date(tx.timestamp).toLocaleTimeString("id-ID", {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
+                        </p>
+                      </div>
+                      <p className="text-elder-base font-black text-success">
+                        +{formatCurrency(tx.amount)}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {expenses.length > 0 && (
+              <div>
+                <p className="text-elder-base font-black mb-2 flex items-center gap-2">
+                  <Leaf className="w-4 h-4 text-danger" /> Pengeluaran ({expenses.length})
+                </p>
+                <div className="space-y-2">
+                  {expenses.map((tx) => (
+                    <div
+                      key={tx.id}
+                      className="rounded-xl bg-card border border-border p-4 flex justify-between items-center"
+                    >
+                      <div>
+                        <p className="text-elder-base font-bold">{getExpenseLabel(tx.description)}</p>
+                        <p className="text-elder-sm text-muted-foreground">
+                          {new Date(tx.timestamp).toLocaleTimeString("id-ID", {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
+                        </p>
+                      </div>
+                      <p className="text-elder-base font-black text-danger">
+                        -{formatCurrency(tx.amount)}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </>
+        ) : (
+          <p className="text-center text-sm text-muted-foreground py-4">
+            Detail transaksi hanya ditampilkan untuk filter Hari.
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
