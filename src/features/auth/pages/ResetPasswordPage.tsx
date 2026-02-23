@@ -71,6 +71,7 @@ export default function ResetPasswordPage() {
       <div className="min-h-screen flex items-center justify-center bg-background p-4">
         <Card className="w-full max-w-md">
           <CardHeader className="text-center">
+            <img src="/icons/logo-buku-kasir.png" alt="" className="mx-auto mb-2 h-12 w-12 rounded object-contain" aria-hidden />
             <CardTitle className="text-elder-xl">Tautan tidak valid</CardTitle>
             <CardDescription>
               Tautan reset kata sandi tidak valid atau sudah kadaluarsa. Silakan minta tautan baru.
@@ -96,6 +97,7 @@ export default function ResetPasswordPage() {
       <div className="min-h-screen flex items-center justify-center bg-background p-4">
         <Card className="w-full max-w-md">
           <CardHeader className="text-center">
+            <img src="/icons/logo-buku-kasir.png" alt="" className="mx-auto mb-2 h-12 w-12 rounded object-contain" aria-hidden />
             <CardTitle className="text-elder-xl text-success">Kata sandi berhasil diubah</CardTitle>
             <CardDescription>
               Anda akan diarahkan ke halaman masuk dalam beberapa detik.
@@ -115,6 +117,7 @@ export default function ResetPasswordPage() {
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
+          <img src="/icons/logo-buku-kasir.png" alt="" className="mx-auto mb-2 h-12 w-12 rounded object-contain" aria-hidden />
           <CardTitle className="text-elder-xl">Atur ulang kata sandi</CardTitle>
           <CardDescription>Masukkan kata sandi baru untuk akun Anda.</CardDescription>
         </CardHeader>

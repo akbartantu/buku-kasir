@@ -56,6 +56,7 @@ export default function ForgotPasswordPage() {
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
+          <img src="/icons/logo-buku-kasir.png" alt="" className="mx-auto mb-2 h-12 w-12 rounded object-contain" aria-hidden />
           <CardTitle className="text-elder-xl">Lupa kata sandi</CardTitle>
           <CardDescription>
             Masukkan email akun Anda. Kami akan mengirim tautan untuk mengatur ulang kata sandi.
