@@ -82,6 +82,7 @@ async function register({ username, fullName, email, password }) {
     email: trimmedEmail,
     passwordHash: hashPassword(password),
     createdAt: new Date().toISOString(),
+    role: "seller",
   };
   const created = await store.createUser(user);
   if (!created) return { error: "Registration failed" };

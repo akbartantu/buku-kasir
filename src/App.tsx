@@ -3,12 +3,16 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { InstallPrompt } from "@/components/InstallPrompt";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { useOnboarding } from "@/hooks/useStore";
 import { Onboarding } from "@/components/Onboarding";
 import { AuthProvider } from "@/features/auth/context/AuthContext";
 import { ProtectedRoute } from "@/features/auth/components/ProtectedRoute";
 import { ProtectedLayout } from "@/components/ProtectedLayout";
+import { AdminLayout } from "@/components/AdminLayout";
+import AdminDashboardPage from "@/pages/AdminDashboardPage";
+import AdminPenggunaPage from "@/pages/AdminPenggunaPage";
+import AdminTransaksiPage from "@/pages/AdminTransaksiPage";
 import SignInPage from "@/features/auth/pages/SignInPage";
 import RegisterPage from "@/features/auth/pages/RegisterPage";
 import ForgotPasswordPage from "@/features/auth/pages/ForgotPasswordPage";
@@ -41,6 +45,19 @@ function AppContent() {
       {/* Email-based reset (hidden from UI; re-enable when email is implemented) */}
       <Route path="/forgot-password" element={<ForgotPasswordPage />} />
       <Route path="/reset-password" element={<ResetPasswordPage />} />
+      <Route
+        path="/admin"
+        element={
+          <ProtectedRoute>
+            <AdminLayout />
+          </ProtectedRoute>
+        }
+      >
+        <Route index element={<Navigate to="/admin/ringkasan" replace />} />
+        <Route path="ringkasan" element={<AdminDashboardPage />} />
+        <Route path="pengguna" element={<AdminPenggunaPage />} />
+        <Route path="transaksi" element={<AdminTransaksiPage />} />
+      </Route>
       <Route
         path="/"
         element={

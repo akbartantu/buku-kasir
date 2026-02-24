@@ -8,7 +8,7 @@ const TRANSACTIONS_SHEET = "Transactions";
 const OPERATIONAL_COSTS_SHEET = "OperationalCosts";
 const ORDERS_SHEET = "Orders";
 
-const USERS_HEADERS = ["id", "username", "fullName", "email", "passwordHash", "createdAt"];
+const USERS_HEADERS = ["id", "username", "fullName", "email", "passwordHash", "createdAt", "role"];
 const SHOP_HEADERS = ["id", "userId", "name", "createdAt"];
 const PRODUCTS_HEADERS = ["id", "userId", "name", "emoji", "price", "stock", "lowStockThreshold"];
 const TRANSACTIONS_HEADERS = ["id", "userId", "type", "productId", "quantity", "amount", "category", "subCategory", "description", "timestamp", "date", "orderId"];
@@ -32,6 +32,8 @@ function getSheets() {
 
 function rowToUser(row) {
   if (!row || row.length < 6) return null;
+  const rawRole = row[6] ? String(row[6]).trim().toLowerCase() : "";
+  const role = rawRole === "admin" ? "admin" : "seller";
   return {
     id: String(row[0] ?? ""),
     username: row[1] ? String(row[1]).trim() || null : null,
@@ -39,6 +41,7 @@ function rowToUser(row) {
     email: row[3] ? String(row[3]).trim().toLowerCase() || null : null,
     passwordHash: String(row[4] ?? ""),
     createdAt: String(row[5] ?? ""),
+    role,
   };
 }
 
@@ -50,6 +53,7 @@ function userToRow(u) {
     u.email ?? "",
     u.passwordHash,
     u.createdAt ?? "",
+    (u.role === "admin" ? "admin" : "seller"),
   ];
 }
 
@@ -230,7 +234,7 @@ async function getUsers() {
   const sheets = getSheets();
   const res = await sheets.spreadsheets.values.get({
     spreadsheetId: SPREADSHEET_ID,
-    range: `${USERS_SHEET}!A2:F`,
+    range: `${USERS_SHEET}!A2:G`,
   });
   const rows = res.data.values || [];
   return rows.map(rowToUser).filter(Boolean);
@@ -241,7 +245,7 @@ async function appendUser(user) {
   const row = userToRow(user);
   await sheets.spreadsheets.values.append({
     spreadsheetId: SPREADSHEET_ID,
-    range: `${USERS_SHEET}!A:F`,
+    range: `${USERS_SHEET}!A:G`,
     valueInputOption: "USER_ENTERED",
     insertDataOption: "INSERT_ROWS",
     requestBody: { values: [row] },
@@ -253,7 +257,7 @@ async function updateUser(userId, updates) {
   const sheets = getSheets();
   const res = await sheets.spreadsheets.values.get({
     spreadsheetId: SPREADSHEET_ID,
-    range: `${USERS_SHEET}!A2:F`,
+    range: `${USERS_SHEET}!A2:G`,
   });
   const rows = res.data.values || [];
   const index = rows.findIndex((r) => String(r[0] ?? "") === userId);
@@ -264,11 +268,12 @@ async function updateUser(userId, updates) {
   if (updates.fullName !== undefined) merged.fullName = updates.fullName;
   if (updates.email !== undefined) merged.email = updates.email;
   if (updates.passwordHash !== undefined) merged.passwordHash = updates.passwordHash;
+  if (updates.role !== undefined) merged.role = updates.role === "admin" ? "admin" : "seller";
   const row = userToRow(merged);
   const rowIndex = index + 2;
   await sheets.spreadsheets.values.update({
     spreadsheetId: SPREADSHEET_ID,
-    range: `${USERS_SHEET}!A${rowIndex}:F${rowIndex}`,
+    range: `${USERS_SHEET}!A${rowIndex}:G${rowIndex}`,
     valueInputOption: "USER_ENTERED",
     requestBody: { values: [row] },
   });
