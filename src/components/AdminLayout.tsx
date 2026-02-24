@@ -1,11 +1,13 @@
 import { Outlet, Link, NavLink } from "react-router-dom";
-import { LayoutDashboard, Users, Receipt, ArrowLeft } from "lucide-react";
+import { LayoutDashboard, Users, Receipt, ShoppingCart, Package, ArrowLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const navItems = [
   { to: "/admin/ringkasan", label: "Ringkasan", icon: LayoutDashboard },
   { to: "/admin/pengguna", label: "Pengguna", icon: Users },
+  { to: "/admin/produk", label: "Produk", icon: Package },
   { to: "/admin/transaksi", label: "Transaksi", icon: Receipt },
+  { to: "/admin/pesanan", label: "Pesanan", icon: ShoppingCart },
 ];
 
 export function AdminLayout() {

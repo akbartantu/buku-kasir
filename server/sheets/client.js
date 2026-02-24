@@ -362,6 +362,23 @@ async function getProducts(userId) {
     .filter(Boolean);
 }
 
+async function getAllProducts() {
+  const sheets = getSheets();
+  const res = await sheets.spreadsheets.values.get({
+    spreadsheetId: SPREADSHEET_ID,
+    range: `${PRODUCTS_SHEET}!A2:G`,
+  });
+  const rows = res.data.values || [];
+  return rows
+    .map((row) => {
+      const p = rowToProduct(row);
+      if (!p) return null;
+      p.userId = String(row[1] ?? "");
+      return p;
+    })
+    .filter(Boolean);
+}
+
 async function appendProduct(userId, product) {
   const sheets = getSheets();
   const row = productToRow({ ...product, userId });
@@ -431,6 +448,24 @@ async function getTransactions(userId) {
     .sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
 }
 
+async function getAllTransactions() {
+  const sheets = getSheets();
+  const res = await sheets.spreadsheets.values.get({
+    spreadsheetId: SPREADSHEET_ID,
+    range: `${TRANSACTIONS_SHEET}!A2:L`,
+  });
+  const rows = res.data.values || [];
+  return rows
+    .map((row) => {
+      const tx = rowToTransaction(row);
+      if (!tx) return null;
+      tx.userId = String(row[1] ?? "");
+      return tx;
+    })
+    .filter(Boolean)
+    .sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+}
+
 async function appendTransaction(userId, transaction) {
   const sheets = getSheets();
   const row = transactionToRow({ ...transaction, userId });
@@ -453,6 +488,19 @@ async function getOrders(userId) {
   const rows = res.data.values || [];
   return rows
     .filter((r) => String(r[1] ?? "") === userId)
+    .map(rowToOrder)
+    .filter(Boolean)
+    .sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""));
+}
+
+async function getAllOrders() {
+  const sheets = getSheets();
+  const res = await sheets.spreadsheets.values.get({
+    spreadsheetId: SPREADSHEET_ID,
+    range: `${ORDERS_SHEET}!A2:J`,
+  });
+  const rows = res.data.values || [];
+  return rows
     .map(rowToOrder)
     .filter(Boolean)
     .sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""));
@@ -503,12 +551,15 @@ module.exports = {
   getOperationalCosts,
   appendOperationalCost,
   getProducts,
+  getAllProducts,
   appendProduct,
   updateProduct,
   deleteProduct,
   getTransactions,
+  getAllTransactions,
   appendTransaction,
   getOrders,
+  getAllOrders,
   appendOrder,
   updateOrder,
   USERS_HEADERS,

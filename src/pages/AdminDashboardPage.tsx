@@ -1,6 +1,7 @@
 import { useMemo, useState, useCallback } from "react";
-import { useProducts, useTransactions } from "@/hooks/useStore";
+import { useQuery } from "@tanstack/react-query";
 import { formatCurrency } from "@/lib/utils";
+import { fetchAdminTransactions, fetchAdminUsers } from "@/lib/adminApi";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import type { ChartConfig } from "@/components/ui/chart";
@@ -72,11 +73,12 @@ function getProductSales(
 ): { name: string; value: number }[] {
   const byName = new Map<string, number>();
   const resolveName = (t: Transaction) => {
-    if (t.productId) {
+    if (t.productName?.trim()) return t.productName.trim();
+    if (products.length > 0 && t.productId) {
       const p = products.find((x) => x.id === t.productId);
       if (p) return p.name;
     }
-    return t.productName ?? "Lainnya";
+    return "Lainnya";
   };
   for (const t of transactions) {
     if (t.type !== "sale") continue;
@@ -114,11 +116,23 @@ const PIE_COLORS = [
 const DEFAULT_DAYS = 30;
 
 export default function AdminDashboardPage() {
-  const { transactions, isLoading: loadingTx } = useTransactions();
-  const { products, isLoading: loadingProducts } = useProducts();
-
   const [startDate, setStartDate] = useState(() => dateOffset(today(), -DEFAULT_DAYS + 1));
   const [endDate, setEndDate] = useState(today());
+  const [userId, setUserId] = useState<string>("");
+
+  const { data: users = [] } = useQuery({
+    queryKey: ["admin", "users"],
+    queryFn: fetchAdminUsers,
+    retry: false,
+  });
+
+  const { data: transactions = [], isLoading: loadingTx } = useQuery({
+    queryKey: ["admin", "transactions", "ringkasan", startDate, endDate, userId],
+    queryFn: () => fetchAdminTransactions({ startDate, endDate, userId: userId || undefined }),
+    retry: false,
+  });
+
+  const products: Product[] = [];
 
   const rangeDates = useMemo(() => getDatesInRange(startDate, endDate), [startDate, endDate]);
   const rangeSet = useMemo(() => new Set(rangeDates), [rangeDates]);
@@ -173,7 +187,7 @@ export default function AdminDashboardPage() {
 
   const productSales = useMemo(
     () => getProductSales(transactions, products, rangeSet),
-    [transactions, products, rangeSet]
+    [transactions, rangeSet]
   );
 
   const lineData = useMemo(
@@ -220,7 +234,7 @@ export default function AdminDashboardPage() {
     URL.revokeObjectURL(url);
   }, [dayAggregate, startDate, endDate]);
 
-  if (loadingTx || loadingProducts) {
+  if (loadingTx) {
     return (
       <div className="flex min-h-[40vh] items-center justify-center text-muted-foreground">
         Memuat data…
@@ -236,7 +250,7 @@ export default function AdminDashboardPage() {
             <Calendar className="h-5 w-5" />
             Rentang Tanggal
           </CardTitle>
-          <CardDescription>Pilih periode untuk analisis. Bandingkan dengan periode sebelumnya.</CardDescription>
+          <CardDescription>Data dari semua penjual. Pilih periode untuk analisis. Bandingkan dengan periode sebelumnya.</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-wrap items-end gap-4">
           <div className="flex flex-col gap-1">
@@ -260,11 +274,26 @@ export default function AdminDashboardPage() {
               className="rounded-md border border-input bg-background px-3 py-2 text-sm"
             />
           </div>
-          <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={() => setPreset(7)}>7 hari</Button>
-            <Button variant="outline" size="sm" onClick={() => setPreset(14)}>14 hari</Button>
-            <Button variant="outline" size="sm" onClick={() => setPreset(30)}>30 hari</Button>
-          </div>
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm" onClick={() => setPreset(7)}>7 hari</Button>
+              <Button variant="outline" size="sm" onClick={() => setPreset(14)}>14 hari</Button>
+              <Button variant="outline" size="sm" onClick={() => setPreset(30)}>30 hari</Button>
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-medium text-muted-foreground">Pengguna</label>
+              <select
+                value={userId}
+                onChange={(e) => setUserId(e.target.value)}
+                className="rounded-md border border-input bg-background px-3 py-2 text-sm min-w-[160px]"
+              >
+                <option value="">Semua penjual</option>
+                {users.map((u) => (
+                  <option key={u.id} value={u.id}>
+                    {u.fullName || u.username || u.email || u.id}
+                  </option>
+                ))}
+              </select>
+            </div>
         </CardContent>
       </Card>
 
@@ -363,33 +392,53 @@ export default function AdminDashboardPage() {
             <Card>
               <CardHeader>
                 <CardTitle>Produk Terlaris</CardTitle>
-                <CardDescription>Berdasarkan jumlah terjual</CardDescription>
+                <CardDescription>Produk yang dijual penjual (periode terpilih). Grafik dan daftar jumlah terjual.</CardDescription>
               </CardHeader>
-              <CardContent>
+              <CardContent className="space-y-4">
                 {productSales.length === 0 ? (
                   <p className="py-8 text-center text-sm text-muted-foreground">Belum ada data penjualan</p>
                 ) : (
-                  <ChartContainer
-                    config={productSales.reduce<ChartConfig>((acc, _, i) => ({ ...acc, [productSales[i].name]: { label: productSales[i].name } }), { value: { label: "Terjual" } })}
-                    className="h-[280px] w-full"
-                  >
-                    <PieChart>
-                      <Pie
-                        data={productSales}
-                        dataKey="value"
-                        nameKey="name"
-                        cx="50%"
-                        cy="50%"
-                        outerRadius={80}
-                        label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                      >
-                        {productSales.map((_, i) => (
-                          <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
-                        ))}
-                      </Pie>
-                      <ChartTooltip content={<ChartTooltipContent />} />
-                    </PieChart>
-                  </ChartContainer>
+                  <>
+                    <ChartContainer
+                      config={productSales.reduce<ChartConfig>((acc, _, i) => ({ ...acc, [productSales[i].name]: { label: productSales[i].name } }), { value: { label: "Terjual" } })}
+                      className="h-[280px] w-full"
+                    >
+                      <PieChart>
+                        <Pie
+                          data={productSales}
+                          dataKey="value"
+                          nameKey="name"
+                          cx="50%"
+                          cy="50%"
+                          outerRadius={80}
+                          label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                        >
+                          {productSales.map((_, i) => (
+                            <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
+                          ))}
+                        </Pie>
+                        <ChartTooltip content={<ChartTooltipContent />} />
+                      </PieChart>
+                    </ChartContainer>
+                    <div className="rounded-md border border-border">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="border-b border-border bg-muted/50">
+                            <th className="px-3 py-2 text-left font-medium text-muted-foreground">Produk</th>
+                            <th className="px-3 py-2 text-right font-medium text-muted-foreground">Jumlah Terjual</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {productSales.map((row, i) => (
+                            <tr key={i} className="border-b border-border/50 last:border-0">
+                              <td className="px-3 py-2">{row.name}</td>
+                              <td className="px-3 py-2 text-right tabular-nums">{row.value}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </>
                 )}
               </CardContent>
             </Card>
