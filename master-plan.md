@@ -15,6 +15,7 @@
 | **Products** | Manage product catalog       | Manage Products                         |
 | **Orders**   | Customer orders (pesanan)    | Orders (list, add, update collected/paid) |
 | **Summary** | View daily/overview          | Summary (shared with Sales/Expenses)    |
+| **Admin** | Admin-only views across sellers | Admin Dashboard, Pengguna, Transaksi   |
 
 ## Pages per module
 
@@ -25,6 +26,7 @@
 - **Products:** `/products`
 - **Orders:** `/orders`
 - **Summary:** `/summary`
+- **Admin:** `/admin` (Dashboard, Ringkasan, Pengguna, Transaksi)
 
 ## Use cases (workflow + data)
 
@@ -45,6 +47,12 @@
 ### Sales / Expenses / Products / Summary
 
 Users, Shop, Products, Transactions, OperationalCosts, and Orders are stored in Google Spreadsheet (see erd-and-sheets.md). Backend API (JWT, userId from token) reads/writes Sheets; frontend calls the API. Each user has one shop (toko name), their own products, transactions, operational costs, and orders. Record sales, record expenses, manage products, view summary, manage customer orders (pesanan: customer name, product, quantity, when to send/collect, status collected/paid); optional: manage shop name and operational costs (recurring/one-time).
+
+### Admin module
+
+| Use case | Workflow | Data read | Data write |
+|----------|----------|-----------|------------|
+| **View all transactions** | Admin opens Admin > Transaksi → sets date range and optional type filter → sees list of all penjualan and expenses across all sellers | Spreadsheet: Transactions (all rows), Users (for seller names) | — |
 
 ## Governance rules
 

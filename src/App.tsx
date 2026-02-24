@@ -13,6 +13,8 @@ import { AdminLayout } from "@/components/AdminLayout";
 import AdminDashboardPage from "@/pages/AdminDashboardPage";
 import AdminPenggunaPage from "@/pages/AdminPenggunaPage";
 import AdminTransaksiPage from "@/pages/AdminTransaksiPage";
+import AdminPesananPage from "@/pages/AdminPesananPage";
+import AdminProdukPage from "@/pages/AdminProdukPage";
 import SignInPage from "@/features/auth/pages/SignInPage";
 import RegisterPage from "@/features/auth/pages/RegisterPage";
 import ForgotPasswordPage from "@/features/auth/pages/ForgotPasswordPage";
@@ -56,7 +58,9 @@ function AppContent() {
         <Route index element={<Navigate to="/admin/ringkasan" replace />} />
         <Route path="ringkasan" element={<AdminDashboardPage />} />
         <Route path="pengguna" element={<AdminPenggunaPage />} />
+        <Route path="produk" element={<AdminProdukPage />} />
         <Route path="transaksi" element={<AdminTransaksiPage />} />
+        <Route path="pesanan" element={<AdminPesananPage />} />
       </Route>
       <Route
         path="/"
