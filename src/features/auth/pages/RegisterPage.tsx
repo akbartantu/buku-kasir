@@ -61,7 +61,8 @@ export default function RegisterPage() {
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
-          <CardTitle className="text-elder-xl">🍽️ Daftar</CardTitle>
+          <img src="/icons/logo-buku-kasir.png" alt="" className="mx-auto mb-2 h-12 w-12 rounded object-contain" aria-hidden />
+          <CardTitle className="text-elder-xl">Daftar</CardTitle>
           <CardDescription>Buat akun dengan username dan kata sandi</CardDescription>
         </CardHeader>
         <CardContent>
