@@ -47,6 +47,7 @@ async function updateUser(userId, updates) {
   if (updates.fullName !== undefined) allowed.fullName = String(updates.fullName).trim() || null;
   if (updates.email !== undefined) allowed.email = updates.email ? String(updates.email).trim().toLowerCase() || null : null;
   if (updates.passwordHash !== undefined) allowed.passwordHash = updates.passwordHash;
+  if (updates.role !== undefined) allowed.role = updates.role === "admin" ? "admin" : "seller";
   const merged = { ...user, ...allowed };
   await sheets.updateUser(userId, merged);
   return merged;

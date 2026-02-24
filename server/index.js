@@ -25,6 +25,7 @@ const transactionsRouter = require("./api/transactions");
 const shopRouter = require("./api/shop");
 const operationalCostsRouter = require("./api/operational-costs");
 const ordersRouter = require("./api/orders");
+const adminRouter = require("./api/admin");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -44,6 +45,7 @@ app.use("/api/transactions", requireAuth, transactionsRouter);
 app.use("/api/shop", requireAuth, shopRouter);
 app.use("/api/operational-costs", requireAuth, operationalCostsRouter);
 app.use("/api/orders", requireAuth, ordersRouter);
+app.use("/api/admin", requireAuth, adminRouter);
 
 app.get("/health", (_, res) => res.json({ ok: true }));
 

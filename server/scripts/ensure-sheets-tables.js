@@ -21,7 +21,7 @@ function resolveCredentialsPath() {
 }
 const CREDENTIALS_PATH = resolveCredentialsPath();
 
-const USERS_HEADERS = ["id", "username", "fullName", "email", "passwordHash", "createdAt"];
+const USERS_HEADERS = ["id", "username", "fullName", "email", "passwordHash", "createdAt", "role"];
 const SHOP_HEADERS = ["id", "userId", "name", "createdAt"];
 const PRODUCTS_HEADERS = ["id", "userId", "name", "emoji", "price", "stock", "lowStockThreshold"];
 const TRANSACTIONS_HEADERS = ["id", "userId", "type", "productId", "quantity", "amount", "category", "subCategory", "description", "timestamp", "date", "orderId"];
@@ -29,7 +29,7 @@ const OPERATIONAL_COSTS_HEADERS = ["id", "userId", "category", "amount", "period
 const ORDERS_HEADERS = ["id", "userId", "customerName", "productId", "productName", "quantity", "scheduledAt", "collected", "paid", "createdAt"];
 
 const SHEETS_CONFIG = [
-  { name: "Users", headers: USERS_HEADERS, col: "F" },
+  { name: "Users", headers: USERS_HEADERS, col: "G" },
   { name: "Shop", headers: SHOP_HEADERS, col: "D" },
   { name: "Products", headers: PRODUCTS_HEADERS, col: "G" },
   { name: "Transactions", headers: TRANSACTIONS_HEADERS, col: "L" },

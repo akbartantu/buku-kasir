@@ -4,6 +4,8 @@ export interface User {
   fullName: string | null;
   email: string | null;
   createdAt: string;
+  /** "admin" | "seller"; default "seller" */
+  role?: string;
 }
 
 export interface LoginCredentials {
