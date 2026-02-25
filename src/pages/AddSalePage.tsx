@@ -7,7 +7,13 @@ import { ConfirmScreen } from "@/components/ConfirmScreen";
 import { SuccessScreen } from "@/components/SuccessScreen";
 import { Label } from "@/components/ui/label";
 import { formatCurrency } from "@/lib/utils";
-import { Product } from "@/types/data";
+import { Product, type PaymentMethod } from "@/types/data";
+
+const PAYMENT_METHOD_OPTIONS: { value: PaymentMethod; label: string }[] = [
+  { value: "tunai", label: "Tunai" },
+  { value: "e-wallet", label: "E-wallet" },
+  { value: "transfer", label: "Transfer bank" },
+];
 
 type Step = "select" | "confirm" | "success";
 
@@ -18,6 +24,7 @@ export default function AddSalePage() {
   const [step, setStep] = useState<Step>("select");
   const [selected, setSelected] = useState<Product | null>(null);
   const [saleQuantity, setSaleQuantity] = useState<number>(1);
+  const [salePaymentMethod, setSalePaymentMethod] = useState<PaymentMethod>("tunai");
   const [confirmedAmount, setConfirmedAmount] = useState<number>(0);
   const [confirmedQuantity, setConfirmedQuantity] = useState<number>(1);
 
@@ -41,6 +48,7 @@ export default function AddSalePage() {
       productName: selected.name,
       quantity: effectiveQuantity,
       amount,
+      paymentMethod: salePaymentMethod,
     });
     await reduceStock(selected.id, effectiveQuantity);
     setStep("success");
@@ -122,6 +130,20 @@ export default function AddSalePage() {
                   +
                 </button>
               </div>
+            </div>
+            <div>
+              <Label className="text-muted-foreground text-elder-sm font-bold">Metode Pembayaran</Label>
+              <select
+                value={salePaymentMethod}
+                onChange={(e) => setSalePaymentMethod(e.target.value as PaymentMethod)}
+                className="mt-1 w-full rounded-xl border-2 border-border bg-muted/50 px-4 py-2.5 text-elder-base font-bold focus:outline-none focus:ring-2 focus:ring-ring"
+              >
+                {PAYMENT_METHOD_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
             </div>
           </div>
         </ConfirmScreen>

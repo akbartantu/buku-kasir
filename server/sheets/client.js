@@ -11,9 +11,9 @@ const ORDERS_SHEET = "Orders";
 const USERS_HEADERS = ["id", "username", "fullName", "email", "passwordHash", "createdAt", "role"];
 const SHOP_HEADERS = ["id", "userId", "name", "createdAt"];
 const PRODUCTS_HEADERS = ["id", "userId", "name", "emoji", "price", "stock", "lowStockThreshold"];
-const TRANSACTIONS_HEADERS = ["id", "userId", "type", "productId", "quantity", "amount", "category", "subCategory", "description", "timestamp", "date", "orderId"];
+const TRANSACTIONS_HEADERS = ["id", "userId", "type", "productId", "quantity", "amount", "category", "subCategory", "description", "timestamp", "date", "orderId", "paymentMethod"];
 const OPERATIONAL_COSTS_HEADERS = ["id", "userId", "category", "amount", "period", "type", "description", "createdAt"];
-const ORDERS_HEADERS = ["id", "userId", "customerName", "productId", "productName", "quantity", "scheduledAt", "collected", "paid", "createdAt"];
+const ORDERS_HEADERS = ["id", "userId", "customerName", "productId", "productName", "quantity", "scheduledAt", "collected", "paid", "createdAt", "paymentMethod"];
 
 function getAuth() {
   const keyFile = process.env.GOOGLE_APPLICATION_CREDENTIALS;
@@ -98,8 +98,12 @@ function operationalCostToRow(o) {
   ];
 }
 
+const VALID_PAYMENT_METHODS = new Set(["tunai", "e-wallet", "transfer"]);
+
 function rowToOrder(row) {
   if (!row || row.length < 10) return null;
+  const raw = String(row[10] ?? "").trim().toLowerCase();
+  const paymentMethod = VALID_PAYMENT_METHODS.has(raw) ? raw : "";
   return {
     id: String(row[0] ?? ""),
     userId: String(row[1] ?? ""),
@@ -111,6 +115,7 @@ function rowToOrder(row) {
     collected: row[7] === "yes" ? "yes" : "no",
     paid: row[8] === "yes" ? "yes" : row[8] === "dp" ? "dp" : "no",
     createdAt: String(row[9] ?? ""),
+    ...(paymentMethod && { paymentMethod }),
   };
 }
 
@@ -126,6 +131,7 @@ function orderToRow(o) {
     o.collected === "yes" ? "yes" : "no",
     o.paid === "yes" ? "yes" : o.paid === "dp" ? "dp" : "no",
     o.createdAt ?? "",
+    o.paymentMethod ?? "",
   ];
 }
 
@@ -192,6 +198,10 @@ function rowToTransaction(row) {
     const oid = String(row[11] ?? "").trim();
     if (oid) tx.orderId = oid;
   }
+  if (row.length >= 13) {
+    const raw = String(row[12] ?? "").trim().toLowerCase();
+    if (VALID_PAYMENT_METHODS.has(raw)) tx.paymentMethod = raw;
+  }
   return tx;
 }
 
@@ -199,23 +209,7 @@ function transactionToRow(t) {
   const category = t.category ?? "";
   const subCategory = t.subCategory ?? "";
   let description = t.description ?? "";
-  if (!category && !subCategory && description && String(description).includes(" — ")) {
-    const parsed = parseDescriptionTriple(description);
-    return [
-      t.id,
-      t.userId,
-      t.type,
-      t.productId ?? "",
-      t.quantity ?? "",
-      t.amount,
-      parsed.category,
-      parsed.subCategory,
-      parsed.description,
-      t.timestamp,
-      t.date,
-    ];
-  }
-  return [
+  const base = [
     t.id,
     t.userId,
     t.type,
@@ -228,6 +222,15 @@ function transactionToRow(t) {
     t.timestamp,
     t.date,
   ];
+  if (!category && !subCategory && description && String(description).includes(" — ")) {
+    const parsed = parseDescriptionTriple(description);
+    base[6] = parsed.category;
+    base[7] = parsed.subCategory;
+    base[8] = parsed.description;
+  }
+  base.push(t.orderId ?? "");
+  base.push(t.paymentMethod ?? "");
+  return base;
 }
 
 async function getUsers() {
@@ -438,7 +441,7 @@ async function getTransactions(userId) {
   const sheets = getSheets();
   const res = await sheets.spreadsheets.values.get({
     spreadsheetId: SPREADSHEET_ID,
-    range: `${TRANSACTIONS_SHEET}!A2:L`,
+    range: `${TRANSACTIONS_SHEET}!A2:M`,
   });
   const rows = res.data.values || [];
   return rows
@@ -452,7 +455,7 @@ async function getAllTransactions() {
   const sheets = getSheets();
   const res = await sheets.spreadsheets.values.get({
     spreadsheetId: SPREADSHEET_ID,
-    range: `${TRANSACTIONS_SHEET}!A2:L`,
+    range: `${TRANSACTIONS_SHEET}!A2:M`,
   });
   const rows = res.data.values || [];
   return rows
@@ -471,7 +474,7 @@ async function appendTransaction(userId, transaction) {
   const row = transactionToRow({ ...transaction, userId });
   await sheets.spreadsheets.values.append({
     spreadsheetId: SPREADSHEET_ID,
-    range: `${TRANSACTIONS_SHEET}!A:L`,
+    range: `${TRANSACTIONS_SHEET}!A:M`,
     valueInputOption: "USER_ENTERED",
     insertDataOption: "INSERT_ROWS",
     requestBody: { values: [row] },
@@ -479,11 +482,69 @@ async function appendTransaction(userId, transaction) {
   return { ...transaction, userId };
 }
 
+const ALLOWED_TRANSACTION_UPDATE_FIELDS = [
+  "type", "amount", "date", "productId", "quantity", "category", "subCategory", "description", "paymentMethod",
+];
+
+async function deleteTransaction(transactionId) {
+  const sheets = getSheets();
+  const res = await sheets.spreadsheets.values.get({
+    spreadsheetId: SPREADSHEET_ID,
+    range: `${TRANSACTIONS_SHEET}!A2:M`,
+  });
+  const rows = res.data.values || [];
+  const index = rows.findIndex((row) => String(row[0]) === transactionId);
+  if (index < 0) return false;
+  const rowIndex = index + 2;
+  await sheets.spreadsheets.values.update({
+    spreadsheetId: SPREADSHEET_ID,
+    range: `${TRANSACTIONS_SHEET}!A${rowIndex}:M${rowIndex}`,
+    valueInputOption: "USER_ENTERED",
+    requestBody: { values: [Array(13).fill("")] },
+  });
+  return true;
+}
+
+async function updateTransaction(transactionId, updates) {
+  const allowed = {};
+  for (const key of ALLOWED_TRANSACTION_UPDATE_FIELDS) {
+    if (updates[key] !== undefined) allowed[key] = updates[key];
+  }
+  if (Object.keys(allowed).length === 0) return null;
+  const sheets = getSheets();
+  const res = await sheets.spreadsheets.values.get({
+    spreadsheetId: SPREADSHEET_ID,
+    range: `${TRANSACTIONS_SHEET}!A2:M`,
+  });
+  const rows = res.data.values || [];
+  const index = rows.findIndex((row) => String(row[0]) === transactionId);
+  if (index < 0) return null;
+  const rowIndex = index + 2;
+  const row = rows[index];
+  const existing = rowToTransaction(row);
+  if (!existing) return null;
+  existing.userId = String(row[1] ?? "");
+  if (row[11] !== undefined && row[11] !== "") existing.orderId = String(row[11]);
+  if (row[12] !== undefined && row[12] !== "") {
+    const pm = String(row[12]).trim().toLowerCase();
+    if (VALID_PAYMENT_METHODS.has(pm)) existing.paymentMethod = pm;
+  }
+  const merged = { ...existing, ...allowed };
+  const newRow = transactionToRow(merged);
+  await sheets.spreadsheets.values.update({
+    spreadsheetId: SPREADSHEET_ID,
+    range: `${TRANSACTIONS_SHEET}!A${rowIndex}:M${rowIndex}`,
+    valueInputOption: "USER_ENTERED",
+    requestBody: { values: [newRow] },
+  });
+  return { ...merged };
+}
+
 async function getOrders(userId) {
   const sheets = getSheets();
   const res = await sheets.spreadsheets.values.get({
     spreadsheetId: SPREADSHEET_ID,
-    range: `${ORDERS_SHEET}!A2:J`,
+    range: `${ORDERS_SHEET}!A2:K`,
   });
   const rows = res.data.values || [];
   return rows
@@ -497,7 +558,7 @@ async function getAllOrders() {
   const sheets = getSheets();
   const res = await sheets.spreadsheets.values.get({
     spreadsheetId: SPREADSHEET_ID,
-    range: `${ORDERS_SHEET}!A2:J`,
+    range: `${ORDERS_SHEET}!A2:K`,
   });
   const rows = res.data.values || [];
   return rows
@@ -511,7 +572,7 @@ async function appendOrder(userId, order) {
   const row = orderToRow({ ...order, userId });
   await sheets.spreadsheets.values.append({
     spreadsheetId: SPREADSHEET_ID,
-    range: `${ORDERS_SHEET}!A:J`,
+    range: `${ORDERS_SHEET}!A:K`,
     valueInputOption: "USER_ENTERED",
     insertDataOption: "INSERT_ROWS",
     requestBody: { values: [row] },
@@ -523,7 +584,7 @@ async function updateOrder(userId, orderId, updates) {
   const sheets = getSheets();
   const res = await sheets.spreadsheets.values.get({
     spreadsheetId: SPREADSHEET_ID,
-    range: `${ORDERS_SHEET}!A2:J`,
+    range: `${ORDERS_SHEET}!A2:K`,
   });
   const rows = res.data.values || [];
   const index = rows.findIndex((r) => String(r[0]) === orderId && String(r[1]) === userId);
@@ -535,7 +596,7 @@ async function updateOrder(userId, orderId, updates) {
   const row = orderToRow(merged);
   await sheets.spreadsheets.values.update({
     spreadsheetId: SPREADSHEET_ID,
-    range: `${ORDERS_SHEET}!A${rowIndex}:J${rowIndex}`,
+    range: `${ORDERS_SHEET}!A${rowIndex}:K${rowIndex}`,
     valueInputOption: "USER_ENTERED",
     requestBody: { values: [row] },
   });
@@ -558,6 +619,8 @@ module.exports = {
   getTransactions,
   getAllTransactions,
   appendTransaction,
+  deleteTransaction,
+  updateTransaction,
   getOrders,
   getAllOrders,
   appendOrder,

@@ -1,6 +1,6 @@
-import { useState, useRef } from "react";
+import { useMemo, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, BarChart3, Calendar, ChevronLeft, ChevronRight, DollarSign, Leaf, Trophy } from "lucide-react";
+import { ArrowLeft, BarChart3, Calendar, ChevronLeft, ChevronRight, Leaf, Trophy, Wallet } from "lucide-react";
 import { useProducts, useTransactions } from "@/hooks/useStore";
 import { formatCurrency } from "@/lib/utils";
 
@@ -65,6 +65,22 @@ export default function SummaryPage() {
   const profit = totalSales - totalExpenses;
   const sales = filteredTransactions.filter((t) => t.type === "sale");
   const expenses = filteredTransactions.filter((t) => t.type === "expense");
+
+  const salesByPaymentMethod = useMemo(() => {
+    const methods: Record<string, number> = { tunai: 0, "e-wallet": 0, transfer: 0, lainnya: 0 };
+    for (const t of sales) {
+      const pm = t.paymentMethod && ["tunai", "e-wallet", "transfer"].includes(t.paymentMethod) ? t.paymentMethod : "lainnya";
+      methods[pm] = (methods[pm] ?? 0) + t.amount;
+    }
+    return methods;
+  }, [sales]);
+
+  const PAYMENT_METHOD_LABELS: Record<string, string> = {
+    tunai: "Tunai",
+    "e-wallet": "E-wallet",
+    transfer: "Transfer bank",
+    lainnya: "Lainnya",
+  };
 
   const periodLabel = (() => {
     if (mode === "day") {
@@ -222,7 +238,7 @@ export default function SummaryPage() {
           <div className="space-y-4">
             <div className="flex justify-between items-center gap-2">
               <span className="text-elder-base font-bold text-muted-foreground flex items-center gap-2 shrink-0">
-                <DollarSign className="w-5 h-5 text-success" /> Total Penjualan
+                <span className="text-success font-bold tabular-nums">Rp</span> Total Penjualan
               </span>
               <span className={`${getSummaryAmountClass(totalSales)} text-success`}>
                 {formatCurrency(totalSales)}
@@ -245,6 +261,24 @@ export default function SummaryPage() {
                 {formatCurrency(Math.abs(profit))}
               </span>
             </div>
+            {totalSales > 0 && (
+              <div className="border-t-2 border-border pt-4 space-y-2">
+                <p className="text-elder-sm font-bold text-muted-foreground flex items-center gap-2 mb-2">
+                  <Wallet className="w-4 h-4" /> Saldo per Metode Pembayaran
+                </p>
+                {(["tunai", "e-wallet", "transfer", "lainnya"] as const).map(
+                  (key) =>
+                    salesByPaymentMethod[key] > 0 && (
+                      <div key={key} className="flex justify-between items-center gap-2">
+                        <span className="text-elder-sm text-muted-foreground">{PAYMENT_METHOD_LABELS[key]}</span>
+                        <span className="text-elder-sm font-bold text-success tabular-nums">
+                          {formatCurrency(salesByPaymentMethod[key])}
+                        </span>
+                      </div>
+                    )
+                )}
+              </div>
+            )}
           </div>
         </div>
 
@@ -269,7 +303,7 @@ export default function SummaryPage() {
             {sales.length > 0 && (
               <div className="mb-4">
                 <p className="text-elder-base font-black mb-2 flex items-center gap-2">
-                  <DollarSign className="w-4 h-4 text-success" /> Penjualan ({sales.length})
+                  <span className="text-success font-bold tabular-nums">Rp</span> Penjualan ({sales.length})
                 </p>
                 <div className="space-y-2">
                   {sales.map((tx) => (

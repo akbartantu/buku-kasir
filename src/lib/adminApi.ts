@@ -24,6 +24,12 @@ export interface AdminTransaction extends Transaction {
   sellerName?: string;
 }
 
+/** Fields allowed when updating a transaction via admin PATCH */
+export type AdminTransactionUpdatePayload = Partial<Pick<
+  AdminTransaction,
+  "type" | "amount" | "date" | "productId" | "quantity" | "description"
+>> & { category?: string; subCategory?: string };
+
 export interface AdminOrder extends Order {
   sellerName?: string;
 }
@@ -60,6 +66,37 @@ export async function fetchAdminTransactions(params?: {
     throw new Error(data.error || "Akses hanya untuk admin.");
   }
   if (!res.ok) throw new Error((await res.json()).error || "Gagal mengambil transaksi");
+  return res.json();
+}
+
+export async function deleteAdminTransaction(id: string): Promise<void> {
+  const res = await fetch(`${BASE_URL}/api/admin/transactions/${encodeURIComponent(id)}`, {
+    method: "DELETE",
+    headers: getHeaders(),
+  });
+  if (res.status === 403) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.error || "Akses hanya untuk admin.");
+  }
+  if (res.status === 404) throw new Error("Transaksi tidak ditemukan");
+  if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || "Gagal menghapus transaksi");
+}
+
+export async function updateAdminTransaction(
+  id: string,
+  payload: AdminTransactionUpdatePayload
+): Promise<AdminTransaction> {
+  const res = await fetch(`${BASE_URL}/api/admin/transactions/${encodeURIComponent(id)}`, {
+    method: "PATCH",
+    headers: getHeaders(),
+    body: JSON.stringify(payload),
+  });
+  if (res.status === 403) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.error || "Akses hanya untuk admin.");
+  }
+  if (res.status === 404) throw new Error("Transaksi tidak ditemukan");
+  if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || "Gagal memperbarui transaksi");
   return res.json();
 }
 

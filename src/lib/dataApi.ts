@@ -148,6 +148,7 @@ export async function createOrder(data: {
   productName: string;
   quantity: number;
   scheduledAt: string;
+  paymentMethod?: "tunai" | "e-wallet" | "transfer";
 }): Promise<Order> {
   const res = await fetch(`${BASE_URL}/api/orders`, {
     method: "POST",
@@ -160,7 +161,7 @@ export async function createOrder(data: {
 
 export async function updateOrder(
   orderId: string,
-  updates: { collected?: "yes" | "no"; paid?: "yes" | "no" | "dp" }
+  updates: { collected?: "yes" | "no"; paid?: "yes" | "no" | "dp"; paymentMethod?: "tunai" | "e-wallet" | "transfer" }
 ): Promise<Order> {
   const res = await fetch(`${BASE_URL}/api/orders/${orderId}`, {
     method: "PATCH",
