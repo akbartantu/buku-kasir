@@ -495,12 +495,34 @@ async function deleteTransaction(transactionId) {
   const rows = res.data.values || [];
   const index = rows.findIndex((row) => String(row[0]) === transactionId);
   if (index < 0) return false;
-  const rowIndex = index + 2;
-  await sheets.spreadsheets.values.update({
+  const meta = await sheets.spreadsheets.get({
     spreadsheetId: SPREADSHEET_ID,
-    range: `${TRANSACTIONS_SHEET}!A${rowIndex}:M${rowIndex}`,
-    valueInputOption: "USER_ENTERED",
-    requestBody: { values: [Array(13).fill("")] },
+    fields: "sheets(properties(sheetId,title))",
+  });
+  const transactionsSheet = (meta.data.sheets || []).find(
+    (s) => s.properties && s.properties.title === TRANSACTIONS_SHEET
+  );
+  if (!transactionsSheet || transactionsSheet.properties.sheetId === undefined) {
+    throw new Error("Transactions sheet not found");
+  }
+  const sheetId = transactionsSheet.properties.sheetId;
+  const rowIndex0 = index + 1;
+  await sheets.spreadsheets.batchUpdate({
+    spreadsheetId: SPREADSHEET_ID,
+    requestBody: {
+      requests: [
+        {
+          deleteDimension: {
+            range: {
+              sheetId,
+              dimension: "ROWS",
+              startIndex: rowIndex0,
+              endIndex: rowIndex0 + 1,
+            },
+          },
+        },
+      ],
+    },
   });
   return true;
 }
