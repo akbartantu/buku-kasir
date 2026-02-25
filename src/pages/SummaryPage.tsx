@@ -91,6 +91,24 @@ export default function SummaryPage() {
   const getProductName = (tx: { productId?: string; productName?: string }) =>
     (tx.productId && products.find((p) => p.id === tx.productId)?.name) ?? tx.productName ?? "—";
 
+  /** Smaller font for large amounts (jutaan, belasan juta) so they fit without overflow. */
+  const getSummaryAmountClass = (amount: number, isProfit = false): string => {
+    const base = "tabular-nums font-black min-w-0 text-right";
+    const abs = Math.abs(amount);
+    if (abs >= 10_000_000) return `text-sm ${base}`;
+    if (abs >= 1_000_000) return `text-base ${base}`;
+    return `${isProfit ? "text-elder-xl" : "text-elder-lg"} ${base}`;
+  };
+
+  /** For non-day modes show date + time; for day mode show time only. */
+  const getTxTimeLabel = (tx: { timestamp: number; date: string }): string => {
+    const d = new Date(tx.timestamp);
+    if (mode === "day") {
+      return d.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" });
+    }
+    return d.toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
+  };
+
   /** For expense cards: show only the description part (after last " — ") to keep the card short. */
   const getExpenseLabel = (description: string | undefined): string => {
     if (!description || !description.trim()) return "—";
@@ -202,27 +220,27 @@ export default function SummaryPage() {
         {/* Summary Card */}
         <div className="rounded-2xl bg-card border-2 border-border p-5 mb-6 shadow-sm">
           <div className="space-y-4">
-            <div className="flex justify-between items-center">
-              <span className="text-elder-base font-bold text-muted-foreground flex items-center gap-2">
+            <div className="flex justify-between items-center gap-2">
+              <span className="text-elder-base font-bold text-muted-foreground flex items-center gap-2 shrink-0">
                 <DollarSign className="w-5 h-5 text-success" /> Total Penjualan
               </span>
-              <span className="text-elder-lg font-black text-success">
+              <span className={`${getSummaryAmountClass(totalSales)} text-success`}>
                 {formatCurrency(totalSales)}
               </span>
             </div>
-            <div className="flex justify-between items-center">
-              <span className="text-elder-base font-bold text-muted-foreground flex items-center gap-2">
+            <div className="flex justify-between items-center gap-2">
+              <span className="text-elder-base font-bold text-muted-foreground flex items-center gap-2 shrink-0">
                 <Leaf className="w-5 h-5 text-danger" /> Total Pengeluaran
               </span>
-              <span className="text-elder-lg font-black text-danger">
+              <span className={`${getSummaryAmountClass(totalExpenses)} text-danger`}>
                 {formatCurrency(totalExpenses)}
               </span>
             </div>
-            <div className="border-t-2 border-border pt-4 flex justify-between items-center">
-              <span className="text-elder-lg font-black flex items-center gap-2">
+            <div className="border-t-2 border-border pt-4 flex justify-between items-center gap-2">
+              <span className="text-elder-lg font-black flex items-center gap-2 shrink-0">
                 <Trophy className="w-6 h-6 text-primary" /> Keuntungan
               </span>
-              <span className={`text-elder-2xl font-black ${profit >= 0 ? "text-primary" : "text-destructive"}`}>
+              <span className={`${getSummaryAmountClass(profit, true)} ${profit >= 0 ? "text-primary" : "text-destructive"}`}>
                 {profit >= 0 ? "" : "-"}
                 {formatCurrency(Math.abs(profit))}
               </span>
@@ -230,10 +248,10 @@ export default function SummaryPage() {
           </div>
         </div>
 
-        {/* Biaya operasional hint */}
+        {/* Biaya operasional hint
         <p className="text-xs text-muted-foreground mb-4">
           Biaya operasional bulanan (sewa, listrik, dll.): tab <strong>Toko</strong> → Biaya operasional.
-        </p>
+        </p> */}
 
         {/* Transaction List (day mode) or empty state */}
         {filteredTransactions.length === 0 ? (
@@ -246,7 +264,7 @@ export default function SummaryPage() {
               {mode === "day" ? "Mulai catat penjualan pertama!" : "Total di atas adalah ringkasan periode yang dipilih."}
             </p>
           </div>
-        ) : mode === "day" ? (
+        ) : (
           <>
             {sales.length > 0 && (
               <div className="mb-4">
@@ -262,10 +280,7 @@ export default function SummaryPage() {
                       <div>
                         <p className="text-elder-base font-bold">{getProductName(tx)}</p>
                         <p className="text-elder-sm text-muted-foreground">
-                          {new Date(tx.timestamp).toLocaleTimeString("id-ID", {
-                            hour: "2-digit",
-                            minute: "2-digit",
-                          })}
+                          {getTxTimeLabel(tx)}
                         </p>
                       </div>
                       <p className="text-elder-base font-black text-success">
@@ -291,10 +306,7 @@ export default function SummaryPage() {
                       <div>
                         <p className="text-elder-base font-bold">{getExpenseLabel(tx.description)}</p>
                         <p className="text-elder-sm text-muted-foreground">
-                          {new Date(tx.timestamp).toLocaleTimeString("id-ID", {
-                            hour: "2-digit",
-                            minute: "2-digit",
-                          })}
+                          {getTxTimeLabel(tx)}
                         </p>
                       </div>
                       <p className="text-elder-base font-black text-danger">
@@ -306,10 +318,6 @@ export default function SummaryPage() {
               </div>
             )}
           </>
-        ) : (
-          <p className="text-center text-sm text-muted-foreground py-4">
-            Detail transaksi hanya ditampilkan untuk filter Hari.
-          </p>
         )}
       </div>
     </div>
