@@ -8,6 +8,8 @@ export interface Product {
   lowStockThreshold: number;
 }
 
+export type PaymentMethod = "tunai" | "e-wallet" | "transfer";
+
 export interface Transaction {
   id: string;
   type: "sale" | "expense";
@@ -20,6 +22,8 @@ export interface Transaction {
   date: string; // YYYY-MM-DD
   /** Set when transaction was created from an order (idempotency) */
   orderId?: string;
+  /** Payment method for sales (tunai, e-wallet, transfer) */
+  paymentMethod?: PaymentMethod;
 }
 
 export interface Order {
@@ -33,6 +37,7 @@ export interface Order {
   collected: "yes" | "no";
   paid: "yes" | "no" | "dp";
   createdAt: string;
+  paymentMethod?: PaymentMethod;
 }
 
 export const DEFAULT_PRODUCTS: Product[] = [

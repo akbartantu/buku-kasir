@@ -116,4 +116,44 @@ router.get("/transactions", ensureSheets, async (req, res) => {
   }
 });
 
+router.delete("/transactions/:id", ensureSheets, async (req, res) => {
+  if (!(await isAdmin(req.userId))) {
+    return res.status(403).json({ error: "Akses hanya untuk admin. Set ADMIN_USER_IDS di server." });
+  }
+  try {
+    const deleted = await sheets.deleteTransaction(req.params.id);
+    if (!deleted) return res.status(404).json({ error: "Transaksi tidak ditemukan" });
+    res.status(204).send();
+  } catch (e) {
+    console.error("DELETE /api/admin/transactions/:id", e);
+    res.status(500).json({ error: e.message || "Failed to delete transaction" });
+  }
+});
+
+router.patch("/transactions/:id", ensureSheets, async (req, res) => {
+  if (!(await isAdmin(req.userId))) {
+    return res.status(403).json({ error: "Akses hanya untuk admin. Set ADMIN_USER_IDS di server." });
+  }
+  try {
+    const updated = await sheets.updateTransaction(req.params.id, req.body);
+    if (!updated) return res.status(404).json({ error: "Transaksi tidak ditemukan" });
+    const users = await sheets.getUsers();
+    const byId = Object.fromEntries(users.map((u) => [u.id, u.fullName || u.username || u.id]));
+    let productName;
+    if (updated.type === "sale" && updated.productId && updated.userId) {
+      const products = await sheets.getProducts(updated.userId);
+      const p = products.find((x) => x.id === updated.productId);
+      productName = p ? p.name : undefined;
+    }
+    res.json({
+      ...updated,
+      sellerName: byId[updated.userId] ?? updated.userId,
+      ...(productName !== undefined && { productName }),
+    });
+  } catch (e) {
+    console.error("PATCH /api/admin/transactions/:id", e);
+    res.status(500).json({ error: e.message || "Failed to update transaction" });
+  }
+});
+
 module.exports = router;

@@ -20,8 +20,18 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { SuccessScreen } from "@/components/SuccessScreen";
 import { formatCurrency } from "@/lib/utils";
-import type { Order } from "@/types/data";
+import type { Order, PaymentMethod } from "@/types/data";
 import type { Product } from "@/types/data";
+
+const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
+  tunai: "Tunai",
+  "e-wallet": "E-wallet",
+  transfer: "Transfer bank",
+};
+
+function paymentMethodLabel(m?: PaymentMethod): string {
+  return m ? PAYMENT_METHOD_LABELS[m] ?? "" : "";
+}
 
 const ORDERS_QUERY_KEY = ["orders"];
 
@@ -35,6 +45,7 @@ function formatScheduledShort(s: string): string {
     weekday: "long",
     day: "numeric",
     month: "short",
+    year: "numeric",
   });
 }
 
@@ -64,13 +75,13 @@ function OrderCard({
   products,
   onSetPaid,
   onSetCollected,
-  recordingCollected,
+  updatePending,
 }: {
   group: { customerName: string; scheduledAt: string; orders: Order[] };
   products: Product[];
-  onSetPaid: (orders: Order[], paid: "dp" | "yes") => void;
-  onSetCollected: (orders: Order[], collected: "yes" | "no") => void | Promise<void>;
-  recordingCollected?: boolean;
+  onSetPaid: (orders: Order[], paid: "dp" | "yes", paymentMethod?: PaymentMethod) => void;
+  onSetCollected: (orders: Order[], collected: "yes" | "no") => void;
+  updatePending?: boolean;
 }) {
   const { customerName, scheduledAt, orders } = group;
   const [payMenuOpen, setPayMenuOpen] = useState(false);
@@ -109,6 +120,8 @@ function OrderCard({
       ? "border-amber-600/50 bg-amber-500/10 text-amber-700 dark:text-amber-300"
       : "border-destructive/50 bg-destructive/10 text-destructive";
   const allCollected = orders.every((o) => o.collected === "yes");
+  const firstPaymentMethod = orders[0]?.paymentMethod;
+  const methodLabel = allPaid && firstPaymentMethod ? paymentMethodLabel(firstPaymentMethod) : "";
 
   return (
     <div className="rounded-xl bg-card border-2 border-border p-4 shadow-sm">
@@ -146,6 +159,11 @@ function OrderCard({
           {allPaid ? <Check className="w-3.5 h-3.5" /> : <Banknote className="w-3.5 h-3.5" />}
           {paymentLabel}
         </span>
+        {methodLabel && (
+          <span className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium border border-border bg-muted/30 text-muted-foreground">
+            {methodLabel}
+          </span>
+        )}
         <span
           className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold border ${
             allCollected ? "border-success bg-success/10 text-success" : "border-muted-foreground/50 bg-muted/50 text-muted-foreground"
@@ -167,7 +185,7 @@ function OrderCard({
                 <Wallet className="w-4 h-4" /> Status Bayar
               </button>
               {payMenuOpen && (
-                <div className="absolute left-0 top-full mt-1 z-10 rounded-lg border-2 border-border bg-card shadow-lg py-1 min-w-[8rem]">
+                <div className="absolute left-0 top-full mt-1 z-10 rounded-lg border-2 border-border bg-card shadow-lg py-1 min-w-[10rem]">
                   <button
                     type="button"
                     onClick={() => {
@@ -181,12 +199,32 @@ function OrderCard({
                   <button
                     type="button"
                     onClick={() => {
-                      onSetPaid(orders, "yes");
+                      onSetPaid(orders, "yes", "tunai");
                       setPayMenuOpen(false);
                     }}
                     className="w-full text-left px-4 py-2 text-xs font-bold text-success hover:bg-success/10"
                   >
-                    Lunas
+                    Lunas – Tunai
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onSetPaid(orders, "yes", "e-wallet");
+                      setPayMenuOpen(false);
+                    }}
+                    className="w-full text-left px-4 py-2 text-xs font-bold text-success hover:bg-success/10"
+                  >
+                    Lunas – E-wallet
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onSetPaid(orders, "yes", "transfer");
+                      setPayMenuOpen(false);
+                    }}
+                    className="w-full text-left px-4 py-2 text-xs font-bold text-success hover:bg-success/10"
+                  >
+                    Lunas – Transfer bank
                   </button>
                 </div>
               )}
@@ -215,14 +253,14 @@ function OrderCard({
                   </button>
                   <button
                     type="button"
-                    disabled={recordingCollected}
+                    disabled={updatePending}
                     onClick={() => {
-                      void onSetCollected(orders, "yes");
+                      onSetCollected(orders, "yes");
                       setCollectMenuOpen(false);
                     }}
                     className="w-full text-left px-4 py-2 text-xs font-bold text-success hover:bg-success/10 disabled:opacity-50 disabled:pointer-events-none"
                   >
-                    {recordingCollected ? "Mencatat..." : "Sudah Diambil"}
+                    {updatePending ? "Menyimpan..." : "Sudah Diambil"}
                   </button>
                 </div>
               )}
@@ -236,6 +274,9 @@ function OrderCard({
 
 const TRANSACTIONS_QUERY_KEY = ["transactions"];
 
+type PaidFilter = "" | "yes" | "no" | "dp";
+type CollectedFilter = "" | "yes" | "no";
+
 export default function OrdersPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -245,8 +286,8 @@ export default function OrdersPage() {
   const [quantities, setQuantities] = useState<Record<string, number>>({});
   const [scheduledAt, setScheduledAt] = useState("");
   const [successCustomerName, setSuccessCustomerName] = useState("");
-  const [recordingCollected, setRecordingCollected] = useState(false);
-  const [recordError, setRecordError] = useState<string | null>(null);
+  const [paidFilter, setPaidFilter] = useState<PaidFilter>("");
+  const [collectedFilter, setCollectedFilter] = useState<CollectedFilter>("");
 
   const { data: orders = [], isLoading } = useQuery({
     queryKey: ORDERS_QUERY_KEY,
@@ -259,16 +300,38 @@ export default function OrdersPage() {
   });
 
   const updateMutation = useMutation({
-    mutationFn: ({ id, updates }: { id: string; updates: { collected?: "yes" | "no"; paid?: "yes" | "no" | "dp" } }) =>
-      dataApi.updateOrder(id, updates),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ORDERS_QUERY_KEY }),
+    mutationFn: ({
+      id,
+      updates,
+    }: {
+      id: string;
+      updates: { collected?: "yes" | "no"; paid?: "yes" | "no" | "dp"; paymentMethod?: PaymentMethod };
+    }) => dataApi.updateOrder(id, updates),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ORDERS_QUERY_KEY });
+      queryClient.invalidateQueries({ queryKey: TRANSACTIONS_QUERY_KEY });
+    },
   });
 
   const groups = useMemo(() => groupOrdersByCustomerAndDate(orders), [orders]);
-  const pendingGroups = groups.filter(
+  const filteredGroups = useMemo(() => {
+    return groups.filter((g) => {
+      if (paidFilter) {
+        if (paidFilter === "yes" && !g.orders.every((o) => o.paid === "yes")) return false;
+        if (paidFilter === "no" && !g.orders.some((o) => o.paid === "no")) return false;
+        if (paidFilter === "dp" && !g.orders.some((o) => o.paid === "dp")) return false;
+      }
+      if (collectedFilter) {
+        if (collectedFilter === "yes" && !g.orders.every((o) => o.collected === "yes")) return false;
+        if (collectedFilter === "no" && !g.orders.some((o) => o.collected === "no")) return false;
+      }
+      return true;
+    });
+  }, [groups, paidFilter, collectedFilter]);
+  const pendingGroups = filteredGroups.filter(
     (g) => g.orders.some((o) => o.paid === "no" || o.collected === "no")
   );
-  const completedGroups = groups.filter(
+  const completedGroups = filteredGroups.filter(
     (g) => g.orders.every((o) => o.paid === "yes" && o.collected === "yes")
   );
 
@@ -304,41 +367,17 @@ export default function OrdersPage() {
     setStep("success");
   };
 
-  const setPaid = (orderRows: Order[], paid: "dp" | "yes") => {
-    orderRows.forEach((o) => updateMutation.mutate({ id: o.id, updates: { paid } }));
+  const setPaid = (orderRows: Order[], paid: "dp" | "yes", paymentMethod?: PaymentMethod) => {
+    orderRows.forEach((o) =>
+      updateMutation.mutate({
+        id: o.id,
+        updates: { paid, ...(paymentMethod && { paymentMethod }) },
+      })
+    );
   };
 
-  const setCollected = async (orderRows: Order[], collected: "yes" | "no") => {
-    if (collected === "no") {
-      orderRows.forEach((o) => updateMutation.mutate({ id: o.id, updates: { collected: "no" } }));
-      return;
-    }
-    setRecordError(null);
-    setRecordingCollected(true);
-    try {
-      const dateStr = orderRows[0] ? scheduledAtToDateStr(orderRows[0].scheduledAt) : new Date().toISOString().split("T")[0];
-      await Promise.all(
-        orderRows.map((o) => {
-          const product = products.find((p) => p.id === o.productId);
-          const amount = product ? product.price * o.quantity : 0;
-          return dataApi.createTransaction({
-            type: "sale",
-            productId: o.productId,
-            productName: o.productName,
-            quantity: o.quantity,
-            amount,
-            date: dateStr,
-            orderId: o.id,
-          });
-        })
-      );
-      orderRows.forEach((o) => updateMutation.mutate({ id: o.id, updates: { collected: "yes" } }));
-      queryClient.invalidateQueries({ queryKey: TRANSACTIONS_QUERY_KEY });
-    } catch (e) {
-      setRecordError(e instanceof Error ? e.message : "Gagal mencatat transaksi");
-    } finally {
-      setRecordingCollected(false);
-    }
+  const setCollected = (orderRows: Order[], collected: "yes" | "no") => {
+    orderRows.forEach((o) => updateMutation.mutate({ id: o.id, updates: { collected } }));
   };
 
   const inc = (productId: string) => setQuantities((q) => ({ ...q, [productId]: (q[productId] || 0) + 1 }));
@@ -370,18 +409,43 @@ export default function OrdersPage() {
           <button
             type="button"
             onClick={handleStartNew}
-            className="w-full mb-6 py-5 rounded-3xl bg-primary text-primary-foreground text-elder-lg font-bold flex items-center justify-center gap-2 touch-target-lg active:scale-[0.98] transition-transform shadow-md"
+            className="w-full mb-4 py-5 rounded-3xl bg-primary text-primary-foreground text-elder-lg font-bold flex items-center justify-center gap-2 touch-target-lg active:scale-[0.98] transition-transform shadow-md"
           >
             <Plus className="w-6 h-6" strokeWidth={2.5} /> Pesanan Baru
           </button>
+
+          <div className="flex flex-wrap gap-3 mb-6">
+            <div className="flex flex-col gap-1 min-w-[120px]">
+              <label className="text-xs font-bold text-muted-foreground">Status Pembayaran</label>
+              <select
+                value={paidFilter}
+                onChange={(e) => setPaidFilter(e.target.value as PaidFilter)}
+                className="rounded-xl border-2 border-border bg-background px-3 py-2.5 text-sm font-medium"
+              >
+                <option value="">Semua</option>
+                <option value="yes">Lunas</option>
+                <option value="dp">DP</option>
+                <option value="no">Belum Bayar</option>
+              </select>
+            </div>
+            <div className="flex flex-col gap-1 min-w-[120px]">
+              <label className="text-xs font-bold text-muted-foreground">Status Pengambilan</label>
+              <select
+                value={collectedFilter}
+                onChange={(e) => setCollectedFilter(e.target.value as CollectedFilter)}
+                className="rounded-xl border-2 border-border bg-background px-3 py-2.5 text-sm font-medium"
+              >
+                <option value="">Semua</option>
+                <option value="yes">Sudah Diambil</option>
+                <option value="no">Belum Diambil</option>
+              </select>
+            </div>
+          </div>
 
           {isLoading ? (
             <p className="text-muted-foreground text-sm">Memuat...</p>
           ) : (
             <>
-              {recordError && (
-                <p className="mb-3 text-sm font-medium text-destructive">{recordError}</p>
-              )}
               {pendingGroups.length > 0 && (
                 <div className="mb-6">
                   <div className="flex items-center gap-2 mb-3 text-muted-foreground">
@@ -396,7 +460,7 @@ export default function OrdersPage() {
                         products={products}
                         onSetPaid={setPaid}
                         onSetCollected={setCollected}
-                        recordingCollected={recordingCollected}
+                        updatePending={updateMutation.isPending}
                       />
                     ))}
                   </div>
@@ -416,14 +480,16 @@ export default function OrdersPage() {
                         products={products}
                         onSetPaid={setPaid}
                         onSetCollected={setCollected}
-                        recordingCollected={recordingCollected}
+                        updatePending={updateMutation.isPending}
                       />
                     ))}
                   </div>
                 </div>
               )}
-              {groups.length === 0 && !isLoading && (
-                <p className="text-muted-foreground text-sm">Belum ada pesanan.</p>
+              {filteredGroups.length === 0 && !isLoading && (
+                <p className="text-muted-foreground text-sm">
+                  {groups.length === 0 ? "Belum ada pesanan." : "Tidak ada pesanan yang sesuai filter."}
+                </p>
               )}
             </>
           )}

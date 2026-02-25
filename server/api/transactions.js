@@ -42,7 +42,7 @@ function isValidDateStr(s) {
 
 router.post("/", ensureSheets, async (req, res) => {
   try {
-    const { type, productId, productName, quantity, amount, description, category, subCategory, date: bodyDate, orderId } = req.body || {};
+    const { type, productId, productName, quantity, amount, description, category, subCategory, date: bodyDate, orderId, paymentMethod } = req.body || {};
     const now = new Date();
     const dateStr = bodyDate != null && isValidDateStr(bodyDate) ? String(bodyDate).trim() : now.toISOString().split("T")[0];
 
@@ -68,6 +68,10 @@ router.post("/", ensureSheets, async (req, res) => {
     if (subCategory != null) transaction.subCategory = String(subCategory).trim();
     if (description != null) transaction.description = String(description).trim();
     if (orderId != null && String(orderId).trim()) transaction.orderId = String(orderId).trim();
+    const validPaymentMethods = new Set(["tunai", "e-wallet", "transfer"]);
+    if (paymentMethod != null && validPaymentMethods.has(String(paymentMethod).trim().toLowerCase())) {
+      transaction.paymentMethod = String(paymentMethod).trim().toLowerCase();
+    }
     if (transaction.type === "expense" && !transaction.category && !transaction.subCategory && transaction.description && transaction.description.includes(" — ")) {
       const parsed = splitExpenseDescription(transaction.description);
       transaction.category = parsed.category;

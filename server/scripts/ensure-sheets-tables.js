@@ -24,17 +24,17 @@ const CREDENTIALS_PATH = resolveCredentialsPath();
 const USERS_HEADERS = ["id", "username", "fullName", "email", "passwordHash", "createdAt", "role"];
 const SHOP_HEADERS = ["id", "userId", "name", "createdAt"];
 const PRODUCTS_HEADERS = ["id", "userId", "name", "emoji", "price", "stock", "lowStockThreshold"];
-const TRANSACTIONS_HEADERS = ["id", "userId", "type", "productId", "quantity", "amount", "category", "subCategory", "description", "timestamp", "date", "orderId"];
+const TRANSACTIONS_HEADERS = ["id", "userId", "type", "productId", "quantity", "amount", "category", "subCategory", "description", "timestamp", "date", "orderId", "paymentMethod"];
 const OPERATIONAL_COSTS_HEADERS = ["id", "userId", "category", "amount", "period", "type", "description", "createdAt"];
-const ORDERS_HEADERS = ["id", "userId", "customerName", "productId", "productName", "quantity", "scheduledAt", "collected", "paid", "createdAt"];
+const ORDERS_HEADERS = ["id", "userId", "customerName", "productId", "productName", "quantity", "scheduledAt", "collected", "paid", "createdAt", "paymentMethod"];
 
 const SHEETS_CONFIG = [
   { name: "Users", headers: USERS_HEADERS, col: "G" },
   { name: "Shop", headers: SHOP_HEADERS, col: "D" },
   { name: "Products", headers: PRODUCTS_HEADERS, col: "G" },
-  { name: "Transactions", headers: TRANSACTIONS_HEADERS, col: "L" },
+  { name: "Transactions", headers: TRANSACTIONS_HEADERS, col: "M" },
   { name: "OperationalCosts", headers: OPERATIONAL_COSTS_HEADERS, col: "H" },
-  { name: "Orders", headers: ORDERS_HEADERS, col: "J" },
+  { name: "Orders", headers: ORDERS_HEADERS, col: "K" },
 ];
 
 async function main() {
