@@ -10,7 +10,7 @@ import {
   DialogFooter,
   DialogDescription,
 } from "@/components/ui/dialog";
-import { Receipt, Calendar, Pencil, Trash2 } from "lucide-react";
+import { Receipt, Calendar, Pencil, Trash2, TrendingUp, TrendingDown, DollarSign } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
 import {
   fetchAdminTransactions,
@@ -76,6 +76,16 @@ export default function AdminTransaksiPage() {
     if (typeFilter === "all") return transactions;
     return transactions.filter((t) => t.type === typeFilter);
   }, [transactions, typeFilter]);
+
+  const { totalPenjualan, totalPengeluaran, totalProfit } = useMemo(() => {
+    const penjualan = filtered.filter((t) => t.type === "sale").reduce((s, t) => s + t.amount, 0);
+    const pengeluaran = filtered.filter((t) => t.type === "expense").reduce((s, t) => s + t.amount, 0);
+    return {
+      totalPenjualan: penjualan,
+      totalPengeluaran: pengeluaran,
+      totalProfit: penjualan - pengeluaran,
+    };
+  }, [filtered]);
 
   const setPreset = useCallback((days: number) => {
     setEndDate(today());
@@ -173,6 +183,38 @@ export default function AdminTransaksiPage() {
           </div>
         </CardContent>
       </Card>
+
+      <div className="grid gap-4 sm:grid-cols-3">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Penjualan</CardTitle>
+            <TrendingUp className="h-4 w-4 text-green-600" />
+          </CardHeader>
+          <CardContent>
+            <p className="text-2xl font-bold">{formatCurrency(totalPenjualan)}</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Pengeluaran</CardTitle>
+            <TrendingDown className="h-4 w-4 text-red-600" />
+          </CardHeader>
+          <CardContent>
+            <p className="text-2xl font-bold">{formatCurrency(totalPengeluaran)}</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Profit</CardTitle>
+            <DollarSign className="h-4 w-4 text-primary" />
+          </CardHeader>
+          <CardContent>
+            <p className={`text-2xl font-bold ${totalProfit >= 0 ? "text-foreground" : "text-red-600"}`}>
+              {formatCurrency(totalProfit)}
+            </p>
+          </CardContent>
+        </Card>
+      </div>
 
       <Card>
         <CardHeader>
