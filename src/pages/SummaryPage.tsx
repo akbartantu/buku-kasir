@@ -1,8 +1,9 @@
-import { useMemo, useState, useRef } from "react";
+import { useMemo, useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, BarChart3, Calendar, ChevronLeft, ChevronRight, Leaf, Trophy, Wallet } from "lucide-react";
+import { ArrowLeft, BarChart3, Calendar, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Leaf, Trophy, Wallet } from "lucide-react";
 import { useProducts, useTransactions } from "@/hooks/useStore";
 import { formatCurrency } from "@/lib/utils";
+import type { Transaction } from "@/types/data";
 
 const today = () => new Date().toISOString().split("T")[0];
 
@@ -34,6 +35,33 @@ function inRange(date: string, start: string, end: string): boolean {
   return date >= start && date <= end;
 }
 
+type GroupMode = "week" | "month" | "year";
+
+function getGroupKey(date: string, mode: GroupMode): string {
+  if (mode === "week") return date;
+  if (mode === "month") return getMonday(date);
+  return date.slice(0, 7); // year -> YYYY-MM
+}
+
+function getGroupLabel(key: string, mode: GroupMode): string {
+  if (mode === "week") {
+    return new Date(key + "T12:00:00").toLocaleDateString("id-ID", {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+    });
+  }
+  if (mode === "month") {
+    const end = weekEnd(key);
+    const a = new Date(key + "T12:00:00").toLocaleDateString("id-ID", { day: "numeric", month: "short" });
+    const b = new Date(end + "T12:00:00").toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" });
+    return `${a} – ${b}`;
+  }
+  return new Date(key + "-01T12:00:00").toLocaleDateString("id-ID", { month: "short", year: "numeric" });
+}
+
+type TransactionGroup = { key: string; label: string; transactions: Transaction[] };
+
 type FilterMode = "day" | "week" | "month" | "year";
 
 export default function SummaryPage() {
@@ -46,6 +74,7 @@ export default function SummaryPage() {
   const [selectedMonth, setSelectedMonth] = useState(() => today().slice(0, 7));
   const [selectedYear, setSelectedYear] = useState(() => today().slice(0, 4));
   const [showDatePicker, setShowDatePicker] = useState(false);
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
   const dateInputRef = useRef<HTMLInputElement>(null);
 
   const filteredTransactions = (() => {
@@ -65,6 +94,50 @@ export default function SummaryPage() {
   const profit = totalSales - totalExpenses;
   const sales = filteredTransactions.filter((t) => t.type === "sale");
   const expenses = filteredTransactions.filter((t) => t.type === "expense");
+
+  useEffect(() => {
+    setCollapsedGroups(new Set());
+  }, [mode]);
+
+  const groupMode: GroupMode | null = mode === "day" ? null : mode;
+
+  const groupedSales = useMemo((): TransactionGroup[] => {
+    if (!groupMode) return [];
+    const byKey = new Map<string, Transaction[]>();
+    for (const tx of sales) {
+      const key = getGroupKey(tx.date, groupMode);
+      const list = byKey.get(key) ?? [];
+      list.push(tx);
+      byKey.set(key, list);
+    }
+    return Array.from(byKey.entries())
+      .map(([key, transactions]) => ({ key, label: getGroupLabel(key, groupMode), transactions }))
+      .sort((a, b) => (b.key > a.key ? 1 : -1));
+  }, [sales, groupMode]);
+
+  const groupedExpenses = useMemo((): TransactionGroup[] => {
+    if (!groupMode) return [];
+    const byKey = new Map<string, Transaction[]>();
+    for (const tx of expenses) {
+      const key = getGroupKey(tx.date, groupMode);
+      const list = byKey.get(key) ?? [];
+      list.push(tx);
+      byKey.set(key, list);
+    }
+    return Array.from(byKey.entries())
+      .map(([key, transactions]) => ({ key, label: getGroupLabel(key, groupMode), transactions }))
+      .sort((a, b) => (b.key > a.key ? 1 : -1));
+  }, [expenses, groupMode]);
+
+  const isGroupExpanded = (key: string) => !collapsedGroups.has(key);
+  const toggleGroup = (key: string) => {
+    setCollapsedGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
 
   const salesByPaymentMethod = useMemo(() => {
     const methods: Record<string, number> = { tunai: 0, "e-wallet": 0, transfer: 0, lainnya: 0 };
@@ -298,7 +371,7 @@ export default function SummaryPage() {
               {mode === "day" ? "Mulai catat penjualan pertama!" : "Total di atas adalah ringkasan periode yang dipilih."}
             </p>
           </div>
-        ) : (
+        ) : mode === "day" ? (
           <>
             {sales.length > 0 && (
               <div className="mb-4">
@@ -348,6 +421,124 @@ export default function SummaryPage() {
                       </p>
                     </div>
                   ))}
+                </div>
+              </div>
+            )}
+          </>
+        ) : (
+          <>
+            {groupedSales.length > 0 && (
+              <div className="mb-4">
+                <p className="text-elder-base font-black mb-2 flex items-center gap-2">
+                  <span className="text-success font-bold tabular-nums">Rp</span> Penjualan ({sales.length})
+                </p>
+                <div className="space-y-3">
+                  {groupedSales.map((group) => {
+                    const expanded = isGroupExpanded(group.key);
+                    const total = group.transactions.reduce((s, t) => s + t.amount, 0);
+                    return (
+                      <div key={group.key} className="rounded-xl border border-border overflow-hidden bg-card">
+                        <button
+                          type="button"
+                          onClick={() => toggleGroup(group.key)}
+                          className="w-full flex items-center justify-between gap-2 p-3 text-left font-bold text-elder-sm active:bg-muted/50 transition-colors"
+                          aria-expanded={expanded}
+                        >
+                          <span className="text-muted-foreground">{group.label}</span>
+                          <span className="flex items-center gap-2 shrink-0">
+                            {!expanded && (
+                              <span className="text-elder-sm text-success tabular-nums">
+                                {group.transactions.length} transaksi · +{formatCurrency(total)}
+                              </span>
+                            )}
+                            {expanded ? (
+                              <ChevronUp className="w-5 h-5 text-muted-foreground" />
+                            ) : (
+                              <ChevronDown className="w-5 h-5 text-muted-foreground" />
+                            )}
+                          </span>
+                        </button>
+                        {expanded && (
+                          <div className="border-t border-border space-y-2 p-3 pt-2">
+                            {group.transactions.map((tx) => (
+                              <div
+                                key={tx.id}
+                                className="rounded-lg bg-muted/40 p-3 flex justify-between items-center"
+                              >
+                                <div>
+                                  <p className="text-elder-base font-bold">{getProductName(tx)}</p>
+                                  <p className="text-elder-sm text-muted-foreground">
+                                    {getTxTimeLabel(tx)}
+                                  </p>
+                                </div>
+                                <p className="text-elder-base font-black text-success">
+                                  +{formatCurrency(tx.amount)}
+                                </p>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {groupedExpenses.length > 0 && (
+              <div>
+                <p className="text-elder-base font-black mb-2 flex items-center gap-2">
+                  <Leaf className="w-4 h-4 text-danger" /> Pengeluaran ({expenses.length})
+                </p>
+                <div className="space-y-3">
+                  {groupedExpenses.map((group) => {
+                    const expanded = isGroupExpanded(group.key);
+                    const total = group.transactions.reduce((s, t) => s + t.amount, 0);
+                    return (
+                      <div key={group.key} className="rounded-xl border border-border overflow-hidden bg-card">
+                        <button
+                          type="button"
+                          onClick={() => toggleGroup(group.key)}
+                          className="w-full flex items-center justify-between gap-2 p-3 text-left font-bold text-elder-sm active:bg-muted/50 transition-colors"
+                          aria-expanded={expanded}
+                        >
+                          <span className="text-muted-foreground">{group.label}</span>
+                          <span className="flex items-center gap-2 shrink-0">
+                            {!expanded && (
+                              <span className="text-elder-sm text-danger tabular-nums">
+                                {group.transactions.length} transaksi · -{formatCurrency(total)}
+                              </span>
+                            )}
+                            {expanded ? (
+                              <ChevronUp className="w-5 h-5 text-muted-foreground" />
+                            ) : (
+                              <ChevronDown className="w-5 h-5 text-muted-foreground" />
+                            )}
+                          </span>
+                        </button>
+                        {expanded && (
+                          <div className="border-t border-border space-y-2 p-3 pt-2">
+                            {group.transactions.map((tx) => (
+                              <div
+                                key={tx.id}
+                                className="rounded-lg bg-muted/40 p-3 flex justify-between items-center"
+                              >
+                                <div>
+                                  <p className="text-elder-base font-bold">{getExpenseLabel(tx.description)}</p>
+                                  <p className="text-elder-sm text-muted-foreground">
+                                    {getTxTimeLabel(tx)}
+                                  </p>
+                                </div>
+                                <p className="text-elder-base font-black text-danger">
+                                  -{formatCurrency(tx.amount)}
+                                </p>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             )}
