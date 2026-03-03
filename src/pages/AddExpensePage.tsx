@@ -27,6 +27,12 @@ const EXPENSE_CATEGORIES = [
     amounts: [10000, 25000, 50000],
   },
   {
+    label: "Upah",
+    emoji: "👨‍🍳",
+    subCategories: ["Karyawan Harian", "Karyawan Bulanan", "Kurir", "Lainnya"],
+    amounts: [50000, 100000, 200000],
+  },
+  {
     label: "Lainnya",
     emoji: "💰",
     subCategories: ["Listrik", "Air", "Sewa", "Lainnya"],
